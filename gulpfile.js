@@ -7,7 +7,9 @@ var babelify    = require('babelify'),
     nib         = require('nib'),
     notify      = require('gulp-notify'),
     plumber     = require('plumber'),
+    rupture     = require('rupture'),
     source      = require('vinyl-source-stream'),
+    sourcemaps  = require('gulp-sourcemaps'),
     stylus      = require('gulp-stylus'),
     uglify      = require('gulp-uglify'),
     watchify    = require('watchify');
@@ -19,6 +21,18 @@ var vendors = [
     'react-tap-event-plugin',
     'jquery'
   ];
+
+var paths = {
+  css: 'assets/css/',
+  js: {
+    dest: 'assets/js/',
+    src: 'src/js/*.js'
+  },
+  stylus: {
+    files: 'src/stylus/**/*.styl',
+    src: 'src/stylus/app.styl'
+  }
+};
 
 var sourceMapper = function (sourceMapPath) {
   return function (err, src, map) {
@@ -44,7 +58,7 @@ function buildVendors(options) {
   options.uglify &&
     b.plugin('minifyify', {
       map: sourceFName,
-      output: 'assets/js/' + sourceFName,
+      output: paths.js.dest + sourceFName,
       uglify: {
           keep_fnames: true,
           mangle: false
@@ -52,7 +66,7 @@ function buildVendors(options) {
       });
 
   return b.require(vendors)
-    .bundle(options.uglify && sourceMapper('assets/js/' + sourceFName))
+    .bundle(options.uglify && sourceMapper(paths.js.dest + sourceFName))
     .on('error', gutil.log)
     .pipe(source('vendors.js'))
     .pipe(gulp.dest('assets/js'));
@@ -74,7 +88,7 @@ function buildApp(options) {
   options.uglify &&
     b.plugin('minifyify', {
       map: sourceFName,
-      output: 'assets/js/' + sourceFName,
+      output: paths.js.dest + sourceFName,
       uglify: {
           keep_fnames: true,
           mangle: false
@@ -83,7 +97,7 @@ function buildApp(options) {
 
   var rebundle = function () {
     var start = Date.now();
-    b.bundle(options.uglify && sourceMapper('assets/js/' + sourceFName))
+    b.bundle(options.uglify && sourceMapper(paths.js.dest + sourceFName))
       .on('error', gutil.log)
       .pipe(source('app.js'))
       .pipe(gulp.dest('assets/js'))
@@ -98,6 +112,24 @@ function buildApp(options) {
   }
 
   return rebundle();
+}
+
+function buildStylus(options) {
+  var build = function() {
+    gulp
+     .src(options.src)
+     .pipe(sourcemaps.init())
+     .pipe(stylus({
+        compress: options.uglify,
+        use: [nib(), jeet(), rupture()],
+        "include css": options.includeCss
+      }))
+     .pipe(sourcemaps.write('.'))
+     .pipe(gulp.dest(options.dest))
+     .pipe(livereload());
+  }
+
+  return build();
 }
 
 // Setup Tasks
@@ -125,53 +157,31 @@ gulp.task('app', function () {
     uglify: true
   });
 });
-// gulp.task('vendors', function () {
-//   var b = browserify({ fullPaths: false, debug: true });
-  
-//   b.plugin('minifyify', {
-//       map: 'vendors.js.map',
-//       output: 'build/js/vendors.js.map',
-//       uglify: {
-//         keep_fnames: true,
-//         mangle: false
-//       }
-//     });
-    
-//   return b.require(vendors)
-//     .bundle('build/js/vendors.js.map')
-//     .on('error', gutil.log)
-//     .pipe(source('vendors.js'))
-//     .pipe(gulp.dest('build/js/'));
-// });
 
-// gulp.task('javascript', function() {
-//     return browserify({entries: "src/js/app.js", debug: true})
-//     		.transform("babelify", {presets: ["es2015", "react"]})
-//         	.bundle()
-//         	.pipe(source('app.js'))
-//         	.pipe(gulp.dest('build/js/'))
-//         	.pipe(livereload());
-// });
-
-// gulp.task('js', function(){
-//   return browserify({entries: "build/js/app.js", debug: true})
-//     .bundle()
-//     .pipe(source('app.js'))
-//     .pipe(gulp.dest('build/js/'));
-// });
+gulp.task('stylus-dev', function() {
+  return buildStylus({
+    includeCss: true,
+    dest: paths.css,
+    src: paths.stylus.src,
+    uglify: false,
+    watch: true
+  });
+});
 
 gulp.task('stylus', function() {
-	gulp
-	 .src('src/stylus/app.styl')
-	 .pipe(stylus({use: [nib(), jeet()]}))
-	 .pipe(gulp.dest('assets/css/'))
-	 .pipe(livereload());
+  return buildStylus({
+    includeCss: true,
+    dest: paths.css,
+    src: paths.stylus.src,
+    uglify: true,
+    watch: false
+  });
 });
 
 gulp.task( 'watch', function() {
-	livereload.listen();
-	gulp.watch('src/stylus/**/*.styl', ['stylus']);
+  livereload.listen();
+  gulp.watch('src/stylus/**/*.styl', ['stylus-dev']);
 })
 
-gulp.task('default', ['vendors-dev', 'app-dev', 'stylus', 'watch']);
+gulp.task('default', ['vendors-dev', 'app-dev', 'stylus-dev', 'watch']);
 gulp.task('build', ['vendors', 'app', 'stylus']);

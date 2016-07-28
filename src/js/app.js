@@ -1,4 +1,4 @@
-LazyLoad.js([`${vPO.baseURL}assets/js/vendors.js`], () => {
+LazyLoad.js([`${rBS.baseURL}assets/js/vendors.js`], () => {
 
   const _ = require('lodash');
 
